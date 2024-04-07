@@ -1,0 +1,37 @@
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
+
+# 添加环境变量
+ENV TZ=Asia/Shanghai \
+ DEBIAN_FRONTEND=noninteractive
+
+# 添加基础软件包
+RUN sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list \ 
+   && sed -i s@/security.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list \ 
+   && rm -rf /etc/apt/sources.list.d/* \
+   && apt-get update \ 
+   && apt-get install -y openssh-server curl wget git inetutils-ping net-tools vim wget tmux supervisor tzdata unzip  \
+   && sed -i '/PermitRootLogin /c PermitRootLogin yes' /etc/ssh/sshd_config \ 
+   && ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime \
+   && echo ${TZ} > /etc/timezone \
+   && dpkg-reconfigure --frontend noninteractive tzdata \
+   && curl -L http://gpu.aiserver.cn:6739/anaconda/Anaconda3-2022.10-Linux-x86_64.sh -o /tmp/Anaconda3-2022.10-Linux-x86_64.sh \
+   && bash /tmp/Anaconda3-2022.10-Linux-x86_64.sh -b -p /opt/conda \
+   && echo export PATH="/opt/conda/bin:\$PATH" >> /root/.bashrc \
+   && /opt/conda/bin/conda init \
+   && rm -rf /var/lib/apt/lists/* \
+   && rm -rf /tmp/* 
+
+# Jupyter、Code-server、Tensorboard安装
+RUN curl -L http://gpu.aiserver.cn:6739/soft/code-server/code-server_4.22.1_amd64.deb -o /tmp/code-server.deb \
+   && dpkg -i /tmp/code-server.deb && rm -rf /tmp/* \
+   && /opt/conda/bin/pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple \
+   && /opt/conda/bin/pip3 install jupyterlab -i https://mirrors.aliyun.com/pypi/simple \
+   && /opt/conda/bin/pip3 install jupyterlab-language-pack-zh-CN -i https://mirrors.aliyun.com/pypi/simple \ 
+   && mkdir -p /root/.jupyter/lab/user-settings/@jupyterlab/translation-extension \
+   && echo "{\"locale\": \"zh_CN\"}"> /root/.jupyter/lab/user-settings/@jupyterlab/translation-extension/plugin.jupyterlab-settings \
+   && /opt/conda/bin/pip3 install tensorboard -i https://mirrors.aliyun.com/pypi/simple
+
+RUN pip3 install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu121
+
+# 配置工作目录为/root
+WORKDIR /root
